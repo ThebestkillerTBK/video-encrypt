@@ -53,18 +53,17 @@ def findbmp(base:str):
 			if f.endswith('.bmp'):
 				yield './img/'+f
 	yield "videos_layout.bmp"
-	yield ""
 
 def args_parser():
 
 	parser = argparse.ArgumentParser(
-		description="A tool to encrypt your video  with an audio key and encoded audio and images.")
+		description="A tool to encrypt your video  with a key and encoded audio and images.")
 	parser.add_argument("-i", "--input", help="Needed. Input file.")
-	parser.add_argument("-o", "--output", help="Needed. Output directory.")	
-	parser.add_argument("--force",action='store_true',help="Optional. Encrypt a video over 150 MB.",default=False)
+	parser.add_argument("-o", "--output", help="Needed. Output directory for encrypting and output file for decrypting.")	
+	parser.add_argument("--force",action='store_true',help="Optional. Encrypt a video over 150 MB. Default disabled.",default=False)
 	parser.add_argument("--fps", help="Optional. Encrypted video fps. Default is 24.",default='24')
 	parser.add_argument("--size", help="Optional. Encrypted video height. Default is 720.",default='720')
-	parser.add_argument("-d","--decrypt",action='store_true',help="Optional. Decrypt a video.",default=False)
+	parser.add_argument("-d","--decrypt",action='store_true',help="Decrypt a video.",default=False)
 	parser.add_argument("--key", help="Needed. Decrypt key.")
 
 	args = parser.parse_args()
@@ -76,14 +75,26 @@ def args_parser():
 	return parser
 
 def main():
+	os.chdir(sys.path[0])
+	
 	if not args.decrypt:
 		encv()
 	else:
 		decv()
 
 def decv():
-	return
-
+	input = args.input
+	output = args.output
+	keyfile = args.key
+	print('Input: {}'.format(input),'\nOutput: {}'.format(output))
+	if not args.key:
+		print('Decryption key needed!!!')
+		sys.exit(1)
+	if not (os.path.isfile(output) or os.path.isfile(input)):
+		print('File or directory does not exist!!!')
+		sys.exit(1)
+	print('Decrypting video data...')
+	chacha.decrypt_chacha(input,keyfile,'temp.zip')
 def encv():
 	input = args.input
 	output = args.output

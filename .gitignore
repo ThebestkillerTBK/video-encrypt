@@ -1,3 +1,19 @@
+.vscode
+img
+temp.zip
+ffmpeg.exe
+ffmpeg.log
+video.mp3
+videos.gz
+videos_layout.zip
+*.exe
+*.mp4
+
+
+
+
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
