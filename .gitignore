@@ -1,11 +1,13 @@
 .vscode
 img
+outdir
 temp.zip
-ffmpeg.exe
-ffmpeg.log
+*.mp4
+*.exe
+ffmpeg*
 video.mp3
 videos.gz
-videos_layout.zip
+videos_layout.bmp
 *.exe
 *.mp4
 
