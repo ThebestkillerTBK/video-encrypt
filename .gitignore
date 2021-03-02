@@ -6,9 +6,8 @@ temp.zip
 *.exe
 ffmpeg*
 *.mp3
-videos.gz
+video*.gz
 videos_layout.bmp
-videos_layout_decode.gz
 videos_layout_decode.jpg
 
 

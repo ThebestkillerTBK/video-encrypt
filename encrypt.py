@@ -103,7 +103,7 @@ def args_parser():
 	return parser
 
 def main():
-	os.chdir(sys.path[0])
+	os.chdir(os.path.dirname(os.path.realpath(sys.argv[0])))
 	if(platform.system()=='Windows' and not os.path.exists(os.path.realpath('./ffmpeg.exe'))):
 		print('Please put ffmpeg binary to current directory and rename to \"ffmpeg\" or \"ffmpeg.exe\"!!!')
 		sys.exit(1)
