@@ -4,6 +4,7 @@ import os
 import os.path
 import sys
 import argparse
+import platform
 import math
 import subprocess
 import base64
@@ -11,11 +12,22 @@ import zipfile
 import gzip
 import time
 import chacha
+import shutil
 import clean
 import encdec
 timestamp =  int(time.time())
 size = '720'
 fps = '24'
+
+def unzip_file(zip_src, dst_dir):
+	r = zipfile.is_zipfile(zip_src)
+	if r:     
+		fz = zipfile.ZipFile(zip_src, 'r')
+		for file in fz.namelist():
+			fz.extract(file, dst_dir)
+	else:
+		print('Error Compressing files!')
+		sys.exit(1)
 
 def addzip(output:str,files:str):
     f = zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED)
@@ -31,10 +43,10 @@ def filesizeMV(filePath):
  
     return round(fsize, 2)
 
-def gzipcom():
-	f_in = open("video.mp3", "rb")
+def gzipcom(input, output):
+	f_in = open(input, "rb")
 
-	f_out = gzip.open("videos.gz", "wb")
+	f_out = gzip.open(output, "wb")
 
 	f_out.writelines(f_in)
 
@@ -42,17 +54,33 @@ def gzipcom():
 
 	f_in.close()
 
+def gzipuncom(fn_in, fn_out):
+    f_in = gzip.open(fn_in, 'rb')
+    f_out = open(fn_out, 'wb')
+    file_content = f_in.read()
+    f_out.write(file_content)
+    f_out.close()
+    f_in.close()
+
+
 def findfile(base:str):
     for a , b , fs in os.walk(base):
         for f in fs:
             yield f
 
-def findbmp(base:str):
+def findbmp(base:str,extension:str):
 	for a , b , fs in os.walk(base):
 		for f in fs:
-			if f.endswith('.bmp'):
+			if f.endswith(extension):
 				yield './img/'+f
 	yield "videos_layout.bmp"
+	yield "./img/frame.txt"
+
+def findext(base:str,extension:str):
+	for a , b , fs in os.walk(base):
+		for f in fs:
+			if f.endswith(extension):
+				yield f
 
 def args_parser():
 
@@ -76,7 +104,12 @@ def args_parser():
 
 def main():
 	os.chdir(sys.path[0])
-	
+	if(platform.system()=='Windows' and not os.path.exists(os.path.realpath('./ffmpeg.exe'))):
+		print('Please put ffmpeg binary to current directory and rename to \"ffmpeg\" or \"ffmpeg.exe\"!!!')
+		sys.exit(1)
+	elif not platform.system()=='Windows' and not os.path.exists(os.path.realpath('./ffmpeg')):
+		print('Please put ffmpeg binary to current directory and rename to \"ffmpeg\" or \"ffmpeg.exe\"!!!')
+		sys.exit(1)
 	if not args.decrypt:
 		encv()
 	else:
@@ -85,16 +118,51 @@ def main():
 def decv():
 	input = args.input
 	output = args.output
+	
+
 	keyfile = args.key
+	
+	clean.clean()
 	print('Input: {}'.format(input),'\nOutput: {}'.format(output))
 	if not args.key:
 		print('Decryption key needed!!!')
+		sys.exit(1)
+	if not os.path.isfile(keyfile):
+		print('Decryption key not exist!!!')
 		sys.exit(1)
 	if not (os.path.isfile(output) or os.path.isfile(input)):
 		print('File or directory does not exist!!!')
 		sys.exit(1)
 	print('Decrypting video data...')
 	chacha.decrypt_chacha(input,keyfile,'temp.zip')
+	print('Decryption complete.\nUncompressing...')
+	unzip_file('temp.zip','./img')
+	shutil.move('./img/videos_layout.bmp','.')
+	encdec.decodevid('videos_layout.bmp','gz')
+	gzipuncom('videos_layout_decode.gz','video.mp3')
+	print('Uncompression complete.\nDecoding...')
+	for i in findext('./img','.bmp'):
+		encdec.decodevid('./img/'+i,'png')
+	
+	fps = chacha.conint(chacha.read_files('./img/frame.txt'))
+	print('Finished.\nConverting video...')
+	sizes = os.path.getsize('video.mp3')
+	if not output.endswith('.mp4'):
+		output = '{}.mp4'.format('.'.join(output.split('.')[:-1]))
+	if sizes == 0:
+		out_code = subprocess.call(['ffmpeg', '-i',
+		os.path.realpath('./img/image-%08d_layout_decode.png'),'-i','video.mp3','-acodec','aac',
+		'-c:v','libx264','-r',str(fps),'-pix_fmt','yuv420p',output], stdout = open('ffmpeg.log','a'), stderr = subprocess.STDOUT)
+	else:
+		out_code = subprocess.call(['ffmpeg', '-i',
+		os.path.realpath('./img/image-%08d_layout_decode.png'),'-i','video.mp3','-acodec','aac',
+		'-c:v','libx264','-r',str(fps),'-pix_fmt','yuv420p',output], stdout = open('ffmpeg.log','a'), stderr = subprocess.STDOUT)
+	if not (out_code == 0):
+		print("Error converting!")
+		sys.exit(1)
+	print('Finished.\nCleaning...')
+	clean.clean()
+	print('Finished.\nDecryption complete.')
 def encv():
 	input = args.input
 	output = args.output
@@ -103,6 +171,12 @@ def encv():
 	size = args.size
 	clean.clean()
 	print('Input: {}'.format(input),'\nOutput: {}'.format(output),'\nFps: {}'.format(fps),'\nHeight: {}'.format(size))
+	if int(fps) > 120 or int(fps) < 10:
+		print('Error: Bad frame rate.')
+		sys.exit(1)
+	if int(size) > 4000 or int(size) < 10:
+		print('Error: Bad video size.')
+		sys.exit(1)
 	if not (os.path.isfile(output) or os.path.exists(input)):
 		print('File or directory does not exist!!!')
 		sys.exit(1)
@@ -112,7 +186,7 @@ def encv():
 	print("Converting video to image and audio...")
 	out_code = subprocess.call(['ffmpeg', '-i',
 	input,'-vf','scale=-1:'+size,'-r',fps,
-	os.path.realpath('./img/image-%08d.jpg')], stdout = open('ffmpeg.log','a'), stderr = subprocess.STDOUT)
+	os.path.realpath('./img/image-%08d.png')], stdout = open('ffmpeg.log','a'), stderr = subprocess.STDOUT)
 	if not (out_code == 0):
 		print("Error converting!")
 		sys.exit(1)
@@ -126,9 +200,10 @@ def encv():
 	for i in findfile('./img'):
 		encdec.encodevid('./img/'+i)
 	print('Finished.\nCompressing images and audio...')
-	gzipcom()
-	encdec.encodevid('videos.gz')
-	addzip('temp.zip',findbmp('./img'))
+	gzipcom('video.mp3','videos.gz')
+	encdec.encodevid('videos.gz')	
+	chacha.w_files('./img/frame.txt',chacha.conbyte(int(fps)))
+	addzip('temp.zip',findbmp('./img','.bmp'))
 	print('Finished.\nEncrypting...')
 	if not os.path.exists(os.path.realpath(output)):
 		os.mkdir(os.path.realpath(output))
@@ -141,7 +216,7 @@ def encv():
 	
 	print('Encryption completed.\nCleaning...')
 	clean.clean()
-	print('Finished!')
+	print('Finished.Encryption complete.')
 
 
 	

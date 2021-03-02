@@ -5,12 +5,11 @@ temp.zip
 *.mp4
 *.exe
 ffmpeg*
-video.mp3
+*.mp3
 videos.gz
 videos_layout.bmp
-*.exe
-*.mp4
-
+videos_layout_decode.gz
+videos_layout_decode.jpg
 
 
 

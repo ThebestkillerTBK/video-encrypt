@@ -1,6 +1,7 @@
 from PIL import Image
 import math
 import base64
+import sys
 
 def decode(im):
 	width, height = im.size
@@ -16,11 +17,12 @@ def decode(im):
 
 	return ''.join(lst)
 
-def decodevid(filename: str):
-	all_text = decode(Image.open(filename))
-	with open("{}_decode.txt".format('.'.join(filename.split('.')[:-1])), "w", encoding = "utf-8") as f:
-		f.write(all_text)
+def decodevid(filename:str,extension:str):
 
+	all_text = decode(Image.open(filename))
+	all_text = base64.b64decode(all_text)
+	with open("{}_decode.".format('.'.join(filename.split('.')[:-1]))+extension, "wb") as f:
+		f.write(all_text)
 def encode(text):
 	str_len = len(text)
 	width = math.ceil(str_len**0.5)
