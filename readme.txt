@@ -13,4 +13,5 @@ To use this script,please download ffmpeg and put the binary to this directory.
 available on https://ffmpeg.org/download.html
 The framerate must over 10 and under 120.
 Video size must over 10 and under 4000.
+Use pip install -r requirements.txt to install dependencies.
 Used Project:https://github.com/3150601355/Novel_In_Image
