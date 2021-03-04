@@ -1,7 +1,3 @@
-Temporary readme file.
-
-
-
 
 A tool to encrypt your video with an key file and encoded audio and images.
 When it is encrypting,do not close the program.It's slow.
@@ -15,4 +11,6 @@ The framerate must over 10 and under 120.
 Video size must over 10 and under 4000.
 Use pip install -r requirements.txt to install dependencies.
 To build win32 executable, run buildexewin.bat.
+run encrypt --help for help
+
 Used Project:https://github.com/3150601355/Novel_In_Image
