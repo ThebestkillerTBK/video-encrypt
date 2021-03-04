@@ -16,8 +16,10 @@ import shutil
 import clean
 import encdec
 timestamp =  int(time.time())
+currdir = os.path.dirname(os.path.realpath(sys.argv[0]))
 size = '720'
 fps = '24'
+ffmpegrun = ''
 
 def unzip_file(zip_src, dst_dir):
 	r = zipfile.is_zipfile(zip_src)
@@ -75,6 +77,8 @@ def findbmp(base:str,extension:str):
 				yield './img/'+f
 	yield "videos_layout.bmp"
 	yield "./img/frame.txt"
+	if os.path.isfile('./img/lossy'):
+		yield './img/lossy'
 
 def findext(base:str,extension:str):
 	for a , b , fs in os.walk(base):
@@ -89,13 +93,13 @@ def args_parser():
 	parser.add_argument("-i", "--input", help="Needed. Input file.")
 	parser.add_argument("-o", "--output", help="Needed. Output directory for encrypting and output file for decrypting.")	
 	parser.add_argument("--force",action='store_true',help="Optional. Encrypt a video over 150 MB. Default disabled.",default=False)
-	parser.add_argument("--fps", help="Optional. Encrypted video fps. Default is 24.",default='24')
-	parser.add_argument("--size", help="Optional. Encrypted video height. Default is 720.",default='720')
+	parser.add_argument("--fps", help="Optional. Encrypted video fps. Default is 24.",default='24',type=int)
+	parser.add_argument("--size", help="Optional. Encrypted video height. Default is 720.",default='720',type=int)
 	parser.add_argument("-d","--decrypt",action='store_true',help="Decrypt a video.",default=False)
 	parser.add_argument("--key", help="Needed. Decrypt key.")
-
+	parser.add_argument("--ffmpeg", help="Optional. Ffmpeg directory.",default=currdir)
+	parser.add_argument("--lossy",help='Optional. Use jpg files. Reduce output size.',action='store_true',default=False)
 	args = parser.parse_args()
-
 	if not (args.input and args.output):
 		print('Missing arguments.')
 		parser.print_help()
@@ -103,11 +107,19 @@ def args_parser():
 	return parser
 
 def main():
-	os.chdir(os.path.dirname(os.path.realpath(sys.argv[0])))
-	if(platform.system()=='Windows' and not os.path.exists(os.path.realpath('./ffmpeg.exe'))):
+	global ffmpegrun
+	ffmpegd = args.ffmpeg
+	os.chdir(currdir)
+	print(os.path.realpath(ffmpegd+'/ffmpeg.exe'))
+	ffmpegrun = os.path.realpath(ffmpegd+'/ffmpeg.exe')
+	if platform.system()=='Windows':
+		ffmpegrun = os.path.realpath(ffmpegd+'/ffmpeg.exe')
+	else:
+		ffmpegrun = os.path.realpath(ffmpegd+'/ffmpeg')
+	if(platform.system()=='Windows' and not os.path.exists(ffmpegrun)):
 		print('Please put ffmpeg binary to current directory and rename to \"ffmpeg\" or \"ffmpeg.exe\"!!!')
 		sys.exit(1)
-	elif not platform.system()=='Windows' and not os.path.exists(os.path.realpath('./ffmpeg')):
+	elif not platform.system()=='Windows' and not os.path.exists(ffmpegrun):
 		print('Please put ffmpeg binary to current directory and rename to \"ffmpeg\" or \"ffmpeg.exe\"!!!')
 		sys.exit(1)
 	if not args.decrypt:
@@ -118,12 +130,11 @@ def main():
 def decv():
 	input = args.input
 	output = args.output
-	
 
 	keyfile = args.key
 	
 	clean.clean()
-	print('Input: {}'.format(input),'\nOutput: {}'.format(output))
+	print('Input: {}'.format(input),'\nOutput: {}'.format(output),'\nKey: {}'.format(keyfile))
 	if not args.key:
 		print('Decryption key needed!!!')
 		sys.exit(1)
@@ -141,8 +152,13 @@ def decv():
 	encdec.decodevid('videos_layout.bmp','gz')
 	gzipuncom('videos_layout_decode.gz','video.mp3')
 	print('Uncompression complete.\nDecoding...')
+	if os.path.isfile('./img/lossy'):
+		imgformat = 'jpg'
+	else:
+		imgformat = 'png'
+
 	for i in findext('./img','.bmp'):
-		encdec.decodevid('./img/'+i,'png')
+		encdec.decodevid('./img/'+i,imgformat)
 	
 	fps = chacha.conint(chacha.read_files('./img/frame.txt'))
 	print('Finished.\nConverting video...')
@@ -150,12 +166,12 @@ def decv():
 	if not output.endswith('.mp4'):
 		output = '{}.mp4'.format('.'.join(output.split('.')[:-1]))
 	if sizes == 0:
-		out_code = subprocess.call(['ffmpeg', '-i',
-		os.path.realpath('./img/image-%08d_layout_decode.png'),'-i','video.mp3','-acodec','aac',
+		out_code = subprocess.call([ffmpegrun, '-i',
+		os.path.realpath('./img/image-%08d_layout_decode.'+imgformat),'-i','video.mp3','-acodec','aac',
 		'-c:v','libx264','-r',str(fps),'-pix_fmt','yuv420p',output], stdout = open('ffmpeg.log','a'), stderr = subprocess.STDOUT)
 	else:
-		out_code = subprocess.call(['ffmpeg', '-i',
-		os.path.realpath('./img/image-%08d_layout_decode.png'),'-i','video.mp3','-acodec','aac',
+		out_code = subprocess.call([ffmpegrun, '-i',
+		os.path.realpath('./img/image-%08d_layout_decode.'+imgformat),'-i','video.mp3','-acodec','aac',
 		'-c:v','libx264','-r',str(fps),'-pix_fmt','yuv420p',output], stdout = open('ffmpeg.log','a'), stderr = subprocess.STDOUT)
 	if not (out_code == 0):
 		print("Error converting!")
@@ -169,6 +185,10 @@ def encv():
 	force = args.force
 	fps = args.fps
 	size = args.size
+	if args.lossy:
+		imgformat = 'jpg'
+	else:
+		imgformat = 'png'
 	clean.clean()
 	print('Input: {}'.format(input),'\nOutput: {}'.format(output),'\nFps: {}'.format(fps),'\nHeight: {}'.format(size))
 	if int(fps) > 120 or int(fps) < 10:
@@ -184,13 +204,14 @@ def encv():
 		print('Your file is too large. Force encrypt by option --force')
 		sys.exit(1)
 	print("Converting video to image and audio...")
-	out_code = subprocess.call(['ffmpeg', '-i',
-	input,'-vf','scale=-1:'+size,'-r',fps,
-	os.path.realpath('./img/image-%08d.png')], stdout = open('ffmpeg.log','a'), stderr = subprocess.STDOUT)
+	
+	out_code = subprocess.call([ffmpegrun, '-i',
+	input,'-vf','scale=-1:'+str(size),'-r',str(fps),
+	os.path.realpath('./img/image-%08d.'+imgformat)], stdout = open('ffmpeg.log','a'), stderr = subprocess.STDOUT)
 	if not (out_code == 0):
 		print("Error converting!")
 		sys.exit(1)
-	out_code = subprocess.call(['ffmpeg', '-i',
+	out_code = subprocess.call([ffmpegrun, '-i',
 	input,'-f','mp3','-vn','video.mp3'], stdout = open('ffmpeg.log','a'), stderr = subprocess.STDOUT)
 	if not (out_code == 0):
 		print("Warning: This video may not have sound or an conversion error occured.")
@@ -202,7 +223,9 @@ def encv():
 	print('Finished.\nCompressing images and audio...')
 	gzipcom('video.mp3','videos.gz')
 	encdec.encodevid('videos.gz')	
-	chacha.w_files('./img/frame.txt',chacha.conbyte(int(fps)))
+	chacha.w_files('./img/frame.txt',chacha.conbyte(fps))
+	if args.lossy:
+		chacha.w_files('./img/lossy',b'')
 	addzip('temp.zip',findbmp('./img','.bmp'))
 	print('Finished.\nEncrypting...')
 	if not os.path.exists(os.path.realpath(output)):
